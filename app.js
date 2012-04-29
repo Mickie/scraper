@@ -28,7 +28,7 @@ app.configure('production', function(){
 });
 
 // Routes
-
+app.get('/scrapeTeams/', require('./routes/scrapeTeams').scrapeTeams);
 app.get('/', routes.index);
 
 var port = process.env.PORT || 3001;

@@ -1,8 +1,3 @@
-
-/*
- * GET home page.
- */
-
 exports.index = function(req, res){
 	
   var pg = require('pg');
