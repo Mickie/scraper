@@ -3,8 +3,9 @@
  * Module dependencies
  */
 
-var express = require('express')
-  , routes = require('./routes');
+var express = require('express'),
+    routes = require('./routes'),
+    theScrapers = require('./routes/scrapeTeams');
 
 var app = module.exports = express.createServer();
 
@@ -28,7 +29,8 @@ app.configure('production', function(){
 });
 
 // Routes
-app.get('/scrapeTeams/', require('./routes/scrapeTeams').scrapeTeams);
+app.get('/scrapeTeams/', theScrapers.scrapeTeams);
+app.get('/saveTeams/', theScrapers.saveTeams);
 app.get('/', routes.index);
 
 var port = process.env.PORT || 3001;
