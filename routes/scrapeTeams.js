@@ -19,13 +19,31 @@ exports.scrapeTeams = function(req, res){
       });
     },
     output: function(anArrayOfResults) {
-      anArrayOfResults.forEach( function(aResult){ 
-        console.log("adding:" + aResult);
-        theDB.query({
-          name: 'add league',
-          text: 'insert into conferences(name, league_id, created_at, updated_at) values($1, 3, now(), now())',
-          values: [aResult]
-        });
+      anArrayOfResults.forEach( function(aResult){
+        console.log("checking:" + aResult);
+        theDB.query(
+          {
+            text: "select id from conferences where name = $1",
+            values: [aResult]
+          },
+          function( anError, anIDResult )
+          {
+            if (anIDResult && anIDResult.rows.length > 0)
+            {
+              console.log("found conference " + aResult + " at id: " + anIDResult.rows[0].id);
+            }
+            else
+            {
+              console.log("conference " + aResult + " not found, adding");
+              theDB.query(
+                {
+                  name: 'add league',
+                  text: 'insert into conferences(name, league_id, created_at, updated_at) values($1, 3, now(), now())',
+                  values: [aResult]
+                });
+            }
+          });
+         
       } );
     },
     complete: function(aCallback) {
