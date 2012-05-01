@@ -51,36 +51,36 @@ exports.scrapeTeams = function(req, res)
       {
         console.log("checking conference:" + aConference.name);
         theDB.query(
+        {
+          name: "find conference id",
+          text: "select id from conferences where name = $1",
+          values: [aConference.name]
+        },
+        function( anError, anIDResult )
+        {
+          if (anIDResult && anIDResult.rows.length > 0)
           {
-            name: "find conference id",
-            text: "select id from conferences where name = $1",
-            values: [aConference.name]
-          },
-          function( anError, anIDResult )
+            console.log("found conference " + aConference.name + " at id: " + anIDResult.rows[0].id);
+            aConference.fanzoId = anIDResult.rows[0].id;
+            theJob.emit(aConference);
+          }
+          else
           {
-            if (anIDResult && anIDResult.rows.length > 0)
+            console.log("conference " + aConference.name + " not found, adding");
+            theDB.query(
             {
-              console.log("found conference " + aConference.name + " at id: " + anIDResult.rows[0].id);
-              aConference.fanzoId = anIDResult.rows[0].id;
+              name: 'add conference',
+              text: 'insert into conferences(name, league_id, created_at, updated_at) values($1, 3, now(), now()) returning id',
+              values: [aConference.name]
+            },
+            function(anError, anInsertResult)
+            {
+              console.log("conference " + aConference.name + " created at id: " + anInsertResult.rows[0].id);
+              aConference.fanzoId = anInsertResult.rows[0].id;
               theJob.emit(aConference);
-            }
-            else
-            {
-              console.log("conference " + aConference.name + " not found, adding");
-              theDB.query(
-                {
-                  name: 'add conference',
-                  text: 'insert into conferences(name, league_id, created_at, updated_at) values($1, 3, now(), now()) returning id',
-                  values: [aConference.name]
-                },
-                function(anError, anInsertResult)
-                {
-                  console.log("conference " + aConference.name + " created at id: " + anInsertResult.rows[0].id);
-                  aConference.fanzoId = anInsertResult.rows[0].id;
-                  theJob.emit(aConference);
-                });
-            }
-          });
+            });
+          }
+        });
       } );      
     },
     output:'public/scraped.txt',

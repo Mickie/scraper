@@ -5,7 +5,8 @@
 
 var express = require('express'),
     routes = require('./routes'),
-    theScrapers = require('./routes/scrapeTeams');
+    theTeamScrapers = require('./routes/scrapeTeams'),
+    theEventScrapers = require('./routes/scrapeEvents');
 
 var app = module.exports = express.createServer();
 
@@ -29,8 +30,9 @@ app.configure('production', function(){
 });
 
 // Routes
-app.get('/scrapeTeams/', theScrapers.scrapeTeams);
-app.get('/saveTeams/', theScrapers.saveTeams);
+app.get('/scrapeTeams/', theTeamScrapers.scrapeTeams);
+app.get('/saveTeams/', theTeamScrapers.saveTeams);
+app.get('/scrapeEvents/', theEventScrapers.scrapeEvents);
 app.get('/', routes.index);
 
 var port = process.env.PORT || 3001;
