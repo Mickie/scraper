@@ -10,8 +10,7 @@ exports.scrapeEvents = function(req, res)
 
   var theScrapeJob = new nodeio.Job
   ({
-//    input: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
-    input: [1],
+    input: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
     run: function(anIndex) 
     {
       var theJob = this;
@@ -59,9 +58,10 @@ exports.scrapeEvents = function(req, res)
       var theFanzoIdFinder = new FanzoIdFinder(aListOfEventsForAWeek, this, theDB);
       theFanzoIdFinder.mapEspnIdsToFanzoIds();
     },
-    output: function(anInput)
+    output: function(aListOfEventsForAWeek)
     {
-      console.log("output:" + JSON.stringify(anInput));
+      var theFanzoEventCreator = new FanzoEventCreator(aListOfEventsForAWeek, this, theDB);
+      theFanzoEventCreator.addEvents();
     },
     complete: function(aCallback) 
     {
@@ -101,6 +101,67 @@ exports.scrapeEvents = function(req, res)
   
 }
 
+var FanzoEventCreator = function(aListOfEventsForAWeek, aJob, aDB)
+{
+  this.myListOfEventsForAWeek = aListOfEventsForAWeek;
+  this.myJob = aJob;
+  this.myDB = aDB;
+  
+  this.myTotalNumberOfEvents = 0;
+  this.myEventsCompleted = 0;
+
+  this.addEvents = function()
+  {
+    for(var i=0,j=this.myListOfEventsForAWeek.length; i<j; i++)
+    {
+      var theEventsForADay = this.myListOfEventsForAWeek[i];
+      this.myTotalNumberOfEvents += theEventsForADay.events.length;
+      for(var k=0,l=theEventsForADay.events.length; k<l; k++)
+      {
+        var theEvent = theEventsForADay.events[k];
+        
+        console.log("creating event for:" + theEventsForADay.date);
+        
+        this.myDB.query(
+        {
+          name: 'add event',
+          text: "insert into events(name, home_team_id, visiting_team_id, event_date, event_time, created_at, updated_at) values('game', $1, $2, $3, $4, now(), now()) returning id",
+          values: [theEvent.homeTeamFanzoId, theEvent.visitingTeamFanzoId, new Date(theEventsForADay.date + " 2012"), this.getTime(theEvent.time)]
+        },
+        function(anError, aNewEventIdResult)
+        {
+          if (anError)
+          {
+            console.log("ERROR adding event: " + anError);
+          }
+          console.log("event added at id: " + aNewEventIdResult.rows[0].id);
+        });
+        
+      }
+    }
+  };
+  
+  this.getTime = function(aTimeString)
+  {
+    if (aTimeString == "TBA")
+    {
+      return null;
+    }
+    else
+    {
+      var theTimeParts = aTimeString.split(" ");
+      if (theTimeParts[1].toUpperCase() == "PM")
+      {
+        theHoursSeconds = theTimeParts[0].split(":");
+        theHoursSeconds[0] = (parseInt(theHoursSeconds[0]) + 12).toString();
+        theTimeParts[0] = theHoursSeconds.join(":");
+      }
+      
+      return theTimeParts[0];
+    }
+  }
+}
+
 var FanzoIdFinder = function(aListOfEventsForAWeek, aJob, aDB)
 {
   this.myListOfEventsForAWeek = aListOfEventsForAWeek;
@@ -116,9 +177,9 @@ var FanzoIdFinder = function(aListOfEventsForAWeek, aJob, aDB)
     {
       var theEventsForADay = this.myListOfEventsForAWeek[i];
       this.myTotalNumberOfEvents += theEventsForADay.events.length;
-      for(var i=0,j=theEventsForADay.events.length; i<j; i++)
+      for(var k=0,l=theEventsForADay.events.length; k<l; k++)
       {
-        var theEvent = theEventsForADay.events[i];
+        var theEvent = theEventsForADay.events[k];
         var theTeamQueryHandler = new TeamQueryHandler(theEvent, this.myDB, this.getCompleteCallback());
         theTeamQueryHandler.findTeamIds();
       };
