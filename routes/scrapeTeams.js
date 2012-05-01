@@ -338,8 +338,8 @@ var ConferenceTeamSaver = function(aConference, aDB, aJob)
           aTeam.fanzoId = anIDResult.rows[0].id;
           theDB.query(
           {
-            name: 'update team',
-            text: "update team set espnID=$1, espnURL=$2, updated_at=now() where id=$3",
+            name: "add espn data to team",
+            text: "update teams set espn_team_id=$1, espn_team_url=$2, updated_at=now() where id=$3",
             values: [aTeam.espnId, aTeam.espnUrl, aTeam.fanzoId]
           },
           function(anError, anUpdateResult)
