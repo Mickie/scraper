@@ -193,10 +193,41 @@ function trim1 (str)
     return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
 }
 
-var AddressLoader = function(aTeam, aDoneCallback)
+var TitleLoader = function(aTeam, aDoneCallback)
 {
   this.myTeam = aTeam;
   this.myDoneCallback = aDoneCallback;
+
+  this.myCallback = function(err, $)
+  {
+    if (err)
+    {
+      console.log("Unable to get better name for " + this.myTeam.name + ": " + err);
+    }
+    else
+    {
+      this.myTeam.name = trim1($("div#sub-branding a.sub-brand-title b").text());
+     
+      console.log("Got better name for:" + this.myTeam.name);
+      
+      this.myDoneCallback();
+    }
+  };
+  
+  this.getCallback = function()
+  {
+    var theCallback = this.myCallback;
+    var theThis = this;
+    return function(err, $) { return theCallback.call(theThis, err, $)};
+  };
+  
+}
+
+var AddressLoader = function(aTeam, aDoneCallback, aJob)
+{
+  this.myTeam = aTeam;
+  this.myDoneCallback = aDoneCallback;
+  this.myJob = aJob;
 
   this.myCallback = function(err, $)
   {
@@ -207,7 +238,10 @@ var AddressLoader = function(aTeam, aDoneCallback)
       this.myTeam.city = '';
       this.myTeam.state = "WA";
       this.myTeam.zip = '';
-      this.myDoneCallback();
+      
+      console.log("attempting to get better name for:" + this.myTeam.name);
+      var theTitleLoader = new TitleLoader(this.myTeam, this.myDoneCallback);
+      this.myJob.getHtml(this.myTeam.espnUrl, theTitleLoader.getCallback());
     }
     else
     {
@@ -263,7 +297,7 @@ var ConferenceTeamAddressScraper = function(aConference, aJob)
         var theTeam = this.myConference.teams[i];
         var theStadiumUrl = "http://espn.go.com/college-football/team/stadium/_/id/" + theTeam.espnId + "/" + theTeam.teamSlug;
         
-        var theAddressLoader = new AddressLoader(theTeam, this.getCompleteCallback());
+        var theAddressLoader = new AddressLoader(theTeam, this.getCompleteCallback(), this.myJob);
         this.myJob.getHtml(theStadiumUrl, theAddressLoader.getCallback());
       };
   };
