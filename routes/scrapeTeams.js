@@ -33,11 +33,11 @@ exports.scrapeTeams = function(req, res)
           theConference.name = theConferenceElement.children("div.mod-header.colhead").text();
           $(anElement).find("div.mod-content a.bi").each(function(aTeamIndex, aTeamElement) {
             theConference.teams[aTeamIndex] = new Object();
-            theConference.teams[aTeamIndex].url = $(aTeamElement).attr("href");
+            theConference.teams[aTeamIndex].espnUrl = $(aTeamElement).attr("href");
             var theIdMatcher = /http:\/\/espn.go.com\/college-football\/team\/_\/id\/(\d+)\/(.*)$/;
-            var theMatches = theIdMatcher.exec(theConference.teams[aTeamIndex].url);
+            var theMatches = theIdMatcher.exec(theConference.teams[aTeamIndex].espnUrl);
             theConference.teams[aTeamIndex].espnId = theMatches[1];
-            theConference.teams[aTeamIndex].teamUrlName = theMatches[2];
+            theConference.teams[aTeamIndex].teamSlug = theMatches[2];
             theConference.teams[aTeamIndex].name = convertSlugToName(theMatches[2]);
           });
           theJob.emit(theConference);
@@ -234,6 +234,9 @@ var AddressLoader = function(aTeam, aDoneCallback)
       {
         console.log("*** Unable to parse address: " + this.myTeam.fullAddress);
       }
+      
+      this.myTeam.name = trim1($("div#sub-branding a.sub-brand-title b").text());
+      
       this.myDoneCallback();
     }
   };
@@ -258,7 +261,7 @@ var ConferenceTeamAddressScraper = function(aConference, aJob)
       for(var i=0,j=this.myConference.teams.length; i<j; i++)
       {
         var theTeam = this.myConference.teams[i];
-        var theStadiumUrl = "http://espn.go.com/college-football/team/stadium/_/id/" + theTeam.espnId + "/" + theTeam.teamUrlName;
+        var theStadiumUrl = "http://espn.go.com/college-football/team/stadium/_/id/" + theTeam.espnId + "/" + theTeam.teamSlug;
         
         var theAddressLoader = new AddressLoader(theTeam, this.getCompleteCallback());
         this.myJob.getHtml(theStadiumUrl, theAddressLoader.getCallback());
@@ -333,7 +336,22 @@ var ConferenceTeamSaver = function(aConference, aDB, aJob)
         {
           console.log("found team " + aTeam.name + " at id: " + anIDResult.rows[0].id);
           aTeam.fanzoId = anIDResult.rows[0].id;
-          theProcessedCallback();
+          theDB.query(
+          {
+            name: 'update team',
+            text: "update team set espnID=$1, espnURL=$2, updated_at=now() where id=$3",
+            values: [aTeam.espnId, aTeam.espnUrl, aTeam.fanzoId]
+          },
+          function(anError, anUpdateResult)
+          {
+            console.log("updated team");
+            if (anError)
+            {
+              console.log("Problem updating team:" + anError);
+              console.log("team: " + JSON.stringify(aTeam));
+            }
+            theProcessedCallback();
+          });          
         }
         else
         {
@@ -357,13 +375,18 @@ var ConferenceTeamSaver = function(aConference, aDB, aJob)
             theDB.query(
             {
               name: 'add team',
-              text: "insert into teams(name, sport_id, league_id, conference_id, location_id, created_at, updated_at) values($1, 1, 2, $2, $3, now(), now()) returning id",
-              values: [aTeam.name, aTeam.conference_id, aTeam.location_id]
+              text: "insert into teams(name, sport_id, league_id, conference_id, location_id, created_at, updated_at, espn_team_url, espn_team_id) values($1, 1, 2, $2, $3, now(), now(), $4, $5) returning id",
+              values: [aTeam.name, aTeam.conference_id, aTeam.location_id, aTeam.espnUrl, parseInt(aTeam.espnId)]
             },
-            function(anError, anTeamResult)
+            function(anError, anAddTeamResult)
             {
-              console.log("team created at id: " + anTeamResult.rows[0].id);
-              aTeam.fanzoId = anTeamResult.rows[0].id;
+              if (anError)
+              {
+                console.log("Problem creating team:" + anError);
+                console.log("team: " + JSON.stringify(aTeam));
+              }
+              console.log("team created at id: " + anAddTeamResult.rows[0].id);
+              aTeam.fanzoId = anAddTeamResult.rows[0].id;
               theProcessedCallback();
             });
           });
