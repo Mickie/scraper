@@ -1,3 +1,6 @@
 node_modules
 public/scraped.txt
-public/scraped.txt
+
+*.swp
+*~
+.DS_Store
