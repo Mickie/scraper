@@ -4,3 +4,5 @@ public/scraped.txt
 *.swp
 *~
 .DS_Store
+public/scraped_NCAAF.txt
+public/scraped_NFL.txt

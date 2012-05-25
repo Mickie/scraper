@@ -331,12 +331,21 @@ var ConferenceTeamSaver = function(aConference, aLeague, aDB, aJob)
       {
         if (anIDResult && anIDResult.rows.length > 0)
         {
-          console.log("found team " + aTeam.name + " at id: " + anIDResult.rows[0].id + "with location id:" + anIDResult.rows[0].location_id);
+          console.log("found team " + aTeam.name + " at id: " + anIDResult.rows[0].id + " with location id:" + anIDResult.rows[0].location_id);
           aTeam.fanzoId = anIDResult.rows[0].id;
+          var theDBQueryText = "";
+          if (theLeague == "NCAAF")
+          {
+            theDBQueryText = "update teams set espn_team_id=$1, espn_team_url=$2, slug=$3, short_name=$4, mascot=$5, updated_at=now() where id=$6" 
+          }
+          else
+          {
+            theDBQueryText = "update teams set espn_team_name_id=$1, espn_team_url=$2, slug=$3, short_name=$4, mascot=$5, updated_at=now() where id=$6" 
+          }
           theDB.query(
             {
               name: "update team data",
-              text: "update teams set espn_team_id=$1, espn_team_url=$2, slug=$3, short_name=$4, mascot=$5, updated_at=now() where id=$6",
+              text: theDBQueryText,
               values: [aTeam.espnId, aTeam.espnUrl, aTeam.teamSlug, aTeam.affiliationName, aTeam.mascot, aTeam.fanzoId]
             },
             function(anError, anUpdateResult)
