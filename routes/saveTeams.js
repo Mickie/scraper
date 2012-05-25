@@ -340,7 +340,7 @@ var ConferenceTeamSaver = function(aConference, aLeague, aDB, aJob)
           }
           else
           {
-            theDBQueryText = "update teams set espn_team_name_id=$1, espn_team_url=$2, slug=$3, short_name=$4, mascot=$5, updated_at=now() where id=$6" 
+            theDBQueryText = "update teams set espn_team_name_id=$1, espn_team_url=$2, slug=$3, short_name=$4, mascot=$5, updated_at=now() where id=$6"
           }
           theDB.query(
             {
