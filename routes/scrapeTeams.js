@@ -18,27 +18,131 @@ exports.scrapeTeams = function(req, res)
 {
   var theDB = new pg.Client(theDBUrl);
   theDB.connect();
+  var URLS = 
+  {
+    "NCAAF" : "http://espn.go.com/college-football/teams",
+    "NFL" : "http://espn.go.com/nfl/teams"
+  };
+    
+  var CONFERENCE_NAME_SELECTOR = 
+  {
+    "NCAAF" : "div.mod-header.colhead",
+    "NFL" : "div.mod-header h4"
+  }
+  
+  var URL_MATCHER = 
+  {
+    "NCAAF" : /http:\/\/espn.go.com\/college-football\/team\/_\/id\/(\d+)\/(.*)$/,
+    "NFL" : /http:\/\/espn.go.com\/nfl\/team\/_\/name\/(\w+)\/(.*)$/
+  }
+  
+  var FIND_CONFERENCE_SQL = 
+  {
+    "NCAAF" : "select id from conferences where name = $1",
+    "NFL" : "select id from divisions where name = $1"
+  }
+    
+  var ADD_CONFERENCE_SQL = 
+  {
+    "NCAAF" : 'insert into conferences(name, league_id, created_at, updated_at) values($1, 2, now(), now()) returning id',
+    "NFL" : 'insert into divisions(name, league_id, created_at, updated_at) values($1, 1, now(), now()) returning id'
+  }
+
+  var theLeague = req.param("league", "NCAAF");
+  
+  console.log("Scraping teams for: " + theLeague);
+  console.log("using url:" + URLS[theLeague]);
+  console.log("using name selector:" + CONFERENCE_NAME_SELECTOR[theLeague]);
 
   var theScrapeJob = new nodeio.Job({
     input: false,
     run: function() {
       var theJob = this;
       this.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_3) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.163 Safari/535.19');
-      this.getHtml("http://espn.go.com/college-football/teams", function(err, $){
+      this.getHtml(URLS[theLeague], function(err, $){
         $("div.mod-container.mod-open-list.mod-teams-list-medium").each(function(anIndex, anElement)
         {
+          
           var theConferenceElement = $(anElement);
           var theConference = new Object();
           theConference.teams = new Array();
-          theConference.name = theConferenceElement.children("div.mod-header.colhead").text();
-          $(anElement).find("div.mod-content a.bi").each(function(aTeamIndex, aTeamElement) {
+          theConference.name = theConferenceElement.find(CONFERENCE_NAME_SELECTOR[theLeague]).text();
+          theConferenceElement.find("div.mod-content a.bi").each(function(aTeamIndex, aTeamElement) {
             theConference.teams[aTeamIndex] = new Object();
             theConference.teams[aTeamIndex].espnUrl = $(aTeamElement).attr("href");
-            var theIdMatcher = /http:\/\/espn.go.com\/college-football\/team\/_\/id\/(\d+)\/(.*)$/;
+            var theIdMatcher = URL_MATCHER[theLeague];
             var theMatches = theIdMatcher.exec(theConference.teams[aTeamIndex].espnUrl);
             theConference.teams[aTeamIndex].espnId = theMatches[1];
             theConference.teams[aTeamIndex].teamSlug = theMatches[2];
-            theConference.teams[aTeamIndex].name = convertSlugToName(theMatches[2]);
+            if (theLeague == "NCAAF")
+            {
+              var theSlugName = convertSlugToName(theMatches[2]);
+              theConference.teams[aTeamIndex].affiliationName = $(aTeamElement).text();
+              var theRegEx = new RegExp(theConference.teams[aTeamIndex].affiliationName + " ", "i");
+              if (theRegEx.test(theSlugName))
+              {
+                theConference.teams[aTeamIndex].mascot = theSlugName.replace( theRegEx, "");
+              }
+              else
+              {
+                var theNameParts = theSlugName.split(" ");
+                
+                if (theConference.teams[aTeamIndex].affiliationName.indexOf('-') > 0)
+                {
+                  var theFirstName = theNameParts.slice(0,2).join("-");
+                  theNameParts = [theFirstName].concat(theNameParts.slice(2));
+                }
+                
+                var theAffiliationParts = theConference.teams[aTeamIndex].affiliationName.split(" ");
+                var theLastMatchIndex = 0;
+                for (var i=0; i < theAffiliationParts.length; i++) 
+                {
+                  var theIndex = theNameParts.indexOf(theAffiliationParts[i]);
+                  if (theIndex > theLastMatchIndex)
+                  {
+                    theLastMatchIndex = theIndex;
+                  }
+                };
+                theConference.teams[aTeamIndex].mascot = trim1(theNameParts.slice(theLastMatchIndex+1).join(" "));
+                
+              }
+              
+              // handle special cases
+              if (theConference.teams[aTeamIndex].mascot == "Redhawks"
+                  && theConference.teams[aTeamIndex].affiliationName == "Miami (OH)")
+              {
+                theConference.teams[aTeamIndex].mascot = "RedHawks"
+              }
+              else if (theConference.teams[aTeamIndex].mascot == "Ragin Cajuns")
+              {
+                theConference.teams[aTeamIndex].mascot = "Ragin' Cajuns"
+              }
+              else if (theConference.teams[aTeamIndex].mascot == "Runnin Bulldogs")
+              {
+                theConference.teams[aTeamIndex].mascot = "Runnin' Bulldogs"
+              }
+              else if (theConference.teams[aTeamIndex].mascot == "Pa Red Flash")
+              {
+                theConference.teams[aTeamIndex].mascot = "Red Flash"
+              }
+              
+              if (theConference.teams[aTeamIndex].mascot.length > 0)
+              {
+                theConference.teams[aTeamIndex].name = theConference.teams[aTeamIndex].affiliationName + " " + theConference.teams[aTeamIndex].mascot;
+              }
+              else
+              {
+                theConference.teams[aTeamIndex].name = theConference.teams[aTeamIndex].affiliationName;
+              }
+            }
+            else
+            {
+              theConference.teams[aTeamIndex].name = $(aTeamElement).text();
+              var theNames = theConference.teams[aTeamIndex].name.split(" ");
+              theConference.teams[aTeamIndex].mascot = theNames[theNames.length - 1];
+              theConference.teams[aTeamIndex].affiliationName = theNames.slice(0, theNames.length-1).join(" ");
+            }
+            
           });
           theJob.emit(theConference);
         });
@@ -53,7 +157,7 @@ exports.scrapeTeams = function(req, res)
         theDB.query(
         {
           name: "find conference id",
-          text: "select id from conferences where name = $1",
+          text: FIND_CONFERENCE_SQL[theLeague],
           values: [aConference.name]
         },
         function( anError, anIDResult )
@@ -70,7 +174,7 @@ exports.scrapeTeams = function(req, res)
             theDB.query(
             {
               name: 'add conference',
-              text: 'insert into conferences(name, league_id, created_at, updated_at) values($1, 3, now(), now()) returning id',
+              text: ADD_CONFERENCE_SQL[theLeague],
               values: [aConference.name]
             },
             function(anError, anInsertResult)
@@ -83,7 +187,7 @@ exports.scrapeTeams = function(req, res)
         });
       } );      
     },
-    output:'public/scraped.txt',
+    output:'public/scraped_' + theLeague + '.txt',
     complete: function(aCallback) {
       theDB.end();
       res.send("completed");
@@ -121,388 +225,10 @@ exports.scrapeTeams = function(req, res)
 
 
 
-exports.saveTeams = function(req, res)
-{
-  var theDB = new pg.Client(theDBUrl);
-  theDB.connect();
-  
-  var theSaveJob = new nodeio.Job({
-    input: 'public/scraped.txt',
-    run:function(aConferenceString)
-    {
-      var theConference = JSON.parse(aConferenceString);
-      console.log("grabbing addresses for: " + theConference.name);
-      var theConferenceTeamAddressScraper = new ConferenceTeamAddressScraper(theConference, this);
-      theConferenceTeamAddressScraper.scrapeAddressesForTeams();
-    },
-    reduce: function(anArrayOfConferences)
-    {
-      for(var i=0,j=anArrayOfConferences.length; i<j; i++)
-      {
-        var theConference = anArrayOfConferences[i];
-        console.log("saving teams for:" + theConference.name);
-        var theConferenceTeamSaver = new ConferenceTeamSaver(theConference, theDB, this);
-        theConferenceTeamSaver.saveTeams();
-      };
-    },
-    output: function(aConference)
-    {
-      console.log("output conference = " + JSON.stringify(aConference));
-    },
-    complete: function(aCallback)
-    {
-//      theDB.end();
-      res.send("save completed");
-      aCallback();
-    }
-  }); 
-  
-  
-  nodeio.start( theSaveJob, 
-                {
-                  max:1,
-                  take:1,
-                  retries:2,
-                  wait:2,
-                  auto_retry:false,
-                  timeout:false,
-                  global_timeout:false,
-                  flatten:true,
-                  benchmark:true,
-                  jsdom:true,
-                  external_resources:false,
-                  redirects:3
-                },
-                function(anError)
-                {
-                  if (anError)
-                  {
-                    console.log(anError);
-                    //theDB.end();
-                    res.send(anError);  
-                  }
-                },
-                false);
-   
-}
-
-
-
 function trim1 (str) 
 {
     return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
 }
 
-var TitleLoader = function(aTeam, aDoneCallback)
-{
-  this.myTeam = aTeam;
-  this.myDoneCallback = aDoneCallback;
-
-  this.myCallback = function(err, $)
-  {
-    if (err)
-    {
-      console.log("Unable to get better name for " + this.myTeam.name + ": " + err);
-    }
-    else
-    {
-      this.myTeam.name = trim1($("div#sub-branding a.sub-brand-title b").text());
-     
-      console.log("Got better name for:" + this.myTeam.name);
-      
-      this.myDoneCallback();
-    }
-  };
-  
-  this.getCallback = function()
-  {
-    var theCallback = this.myCallback;
-    var theThis = this;
-    return function(err, $) { return theCallback.call(theThis, err, $)};
-  };
-  
-}
-
-var AddressLoader = function(aTeam, aDoneCallback, aJob)
-{
-  this.myTeam = aTeam;
-  this.myDoneCallback = aDoneCallback;
-  this.myJob = aJob;
-
-  this.myCallback = function(err, $)
-  {
-    if (err)
-    {
-      console.log("Unable to get address info for " + this.myTeam.name + ": " + err);
-      this.myTeam.address1 = "NEED TO LOOKUP";
-      this.myTeam.city = '';
-      this.myTeam.state = "WA";
-      this.myTeam.zip = '';
-      
-      console.log("attempting to get better name for:" + this.myTeam.name);
-      var theTitleLoader = new TitleLoader(this.myTeam, this.myDoneCallback);
-      this.myJob.getHtml(this.myTeam.espnUrl, theTitleLoader.getCallback());
-    }
-    else
-    {
-      this.myTeam.fullAddress = trim1($("ul.stadium-info span.address-link a").text());
-      
-      var theAddressBits = this.myTeam.fullAddress.split(',');
-      if (theAddressBits.length == 3)
-      {
-        this.myTeam.address1 = trim1(theAddressBits[0]);
-        this.myTeam.city = trim1(theAddressBits[1]);
-        var theStateZipBits = trim1(theAddressBits[2]).split(' ');
-        this.myTeam.state = theStateZipBits[0];
-        this.myTeam.zip = theStateZipBits[1];
-      }
-      else if (theAddressBits.length == 2)
-      {
-        this.myTeam.address1 = trim1(theAddressBits[0]);
-        var theCityStateZipBits = trim1(theAddressBits[1]).split(' ');
-        this.myTeam.city = theCityStateZipBits[0];
-        this.myTeam.state = theCityStateZipBits[1];
-        this.myTeam.zip = theCityStateZipBits[2];
-      }
-      else
-      {
-        console.log("*** Unable to parse address: " + this.myTeam.fullAddress);
-      }
-      
-      this.myTeam.name = trim1($("div#sub-branding a.sub-brand-title b").text());
-      
-      this.myDoneCallback();
-    }
-  };
-  
-  this.getCallback = function()
-  {
-    var theCallback = this.myCallback;
-    var theThis = this;
-    return function(err, $) { return theCallback.call(theThis, err, $)};
-  }
-
-}
-
-var ConferenceTeamAddressScraper = function(aConference, aJob)
-{
-  this.myConference = aConference;
-  this.myJob = aJob;
-  this.myNumberOfProcessedTeams = 0;
-  
-  this.scrapeAddressesForTeams = function()
-  {
-      for(var i=0,j=this.myConference.teams.length; i<j; i++)
-      {
-        var theTeam = this.myConference.teams[i];
-        var theStadiumUrl = "http://espn.go.com/college-football/team/stadium/_/id/" + theTeam.espnId + "/" + theTeam.teamSlug;
-        
-        var theAddressLoader = new AddressLoader(theTeam, this.getCompleteCallback(), this.myJob);
-        this.myJob.getHtml(theStadiumUrl, theAddressLoader.getCallback());
-      };
-  };
-  
-  this.myCompleteCallback = function()
-  {
-    this.myNumberOfProcessedTeams++;
-    if (this.myNumberOfProcessedTeams >= this.myConference.teams.length)
-    {
-      this.myJob.emit(this.myConference);
-    }
-  };
-  
-  this.getCompleteCallback = function()
-  {
-    var theCallback = this.myCompleteCallback;
-    var theThis = this;
-    return function() { return theCallback.call(theThis)};
-  }
-  
-}
-
-var ConferenceTeamSaver = function(aConference, aDB, aJob)
-{
-  this.myConference = aConference;
-  this.myDB = aDB;
-  this.myJob = aJob;
-  this.myTeamsProcessed = 0;
-  
-  this.saveTeams = function()
-  {
-    for(var i=0,j=this.myConference.teams.length; i<j; i++)
-    {
-      var theTeam = this.myConference.teams[i];
-      theTeam.conference_id = this.myConference.fanzoId;
-      this.saveTeamIfNew(theTeam);
-    };
-  };
-  
-  this.processedTeam = function()
-  {
-    this.myTeamsProcessed++;
-    if (this.myTeamsProcessed >= this.myConference.teams.length)
-    {
-      this.myJob.emit(this.myConference);
-    }
-  }
-  
-  this.getCompleteCallback = function()
-  {
-    var theCallback = this.processedTeam;
-    var theThis = this;
-    return function() { return theCallback.call(theThis)};
-  }
-  
-  
-  this.saveTeamIfNew = function(aTeam)
-  {
-    var theProcessedCallback = this.getCompleteCallback();
-    var theDB = this.myDB;
-    theDB.query(
-      {
-        name: "find team id",
-        text: "select id from teams where name = $1",
-        values: [aTeam.name]
-      },
-      function( anError, anIDResult )
-      {
-        if (anIDResult && anIDResult.rows.length > 0)
-        {
-          console.log("found team " + aTeam.name + " at id: " + anIDResult.rows[0].id);
-          aTeam.fanzoId = anIDResult.rows[0].id;
-          theDB.query(
-          {
-            name: "add espn data to team",
-            text: "update teams set espn_team_id=$1, espn_team_url=$2, updated_at=now() where id=$3",
-            values: [aTeam.espnId, aTeam.espnUrl, aTeam.fanzoId]
-          },
-          function(anError, anUpdateResult)
-          {
-            console.log("updated team");
-            if (anError)
-            {
-              console.log("Problem updating team:" + anError);
-              console.log("team: " + JSON.stringify(aTeam));
-            }
-            theProcessedCallback();
-          });          
-        }
-        else
-        {
-          console.log("team " + aTeam.name + " not found, adding");
-          theDB.query(
-          {
-            name: 'add location',
-            text: "insert into locations(name, address1, city, state_id, postal_code, created_at, updated_at) values('stadium', $1, $2, $3, $4, now(), now()) returning id",
-            values: [aTeam.address1, aTeam.city, mapStateToId(aTeam.state), aTeam.zip]
-          },
-          function(anError, anInsertResult)
-          {
-            if (anError)
-            {
-              console.log("Problem creating location:" + anError);
-              console.log("team: " + JSON.stringify(aTeam));
-            }
-            console.log("location created at id: " + anInsertResult.rows[0].id);
-            aTeam.location_id = anInsertResult.rows[0].id;
-            
-            theDB.query(
-            {
-              name: 'add team',
-              text: "insert into teams(name, sport_id, league_id, conference_id, location_id, created_at, updated_at, espn_team_url, espn_team_id) values($1, 1, 2, $2, $3, now(), now(), $4, $5) returning id",
-              values: [aTeam.name, aTeam.conference_id, aTeam.location_id, aTeam.espnUrl, parseInt(aTeam.espnId)]
-            },
-            function(anError, anAddTeamResult)
-            {
-              if (anError)
-              {
-                console.log("Problem creating team:" + anError);
-                console.log("team: " + JSON.stringify(aTeam));
-              }
-              console.log("team created at id: " + anAddTeamResult.rows[0].id);
-              aTeam.fanzoId = anAddTeamResult.rows[0].id;
-              theProcessedCallback();
-            });
-          });
-        }
-      });
-    
-  };
-}
-
-function mapStateToId(anAbbreviation)
-{
-  return STATE_TO_ID_MAP[anAbbreviation];
-}
-
-var STATE_TO_ID_MAP =
-{
-  "AL":1,
-  "AK":2,
-  "AZ":3,
-  "AR":4,
-  "CA":5,
-  "CO":6,
-  "CT":7,
-  "DE":8,
-  "FL":9,
-  "GA":10,
-  "HI":11,
-  "ID":12,
-  "IL":13,
-  "IN":14,
-  "IA":15,
-  "Iowa":15,
-  "KS":16,
-  "KY":17,
-  "LA":18,
-  "ME":19,
-  "MD":20,
-  "MA":21,
-  "MI":22,
-  "MN":23,
-  "MS":24,
-  "MO":25,
-  "MT":26,
-  "NE":27,
-  "NV":28,
-  "NH":29,
-  "NJ":30,
-  "NM":31,
-  "NY":32,
-  "NC":33,
-  "ND":34,
-  "OH":35,
-  "OK":36,
-  "OR":37,
-  "PA":38,
-  "RI":39,
-  "SC":40,
-  "SD":41,
-  "TN":42,
-  "TX":43,
-  "UT":44,
-  "VT":45,
-  "VA":46,
-  "WA":47,
-  "WV":48,
-  "WI":49,
-  "WY":50,
-  "AS":51,
-  "DC":52,
-  "FM":53,
-  "GU":54,
-  "MH":55,
-  "MP":56,
-  "PW":57,
-  "PR":58,
-  "VI":59,
-  "AE":60,
-  "AA":61,
-  "AE":62,
-  "AE":63,
-  "AE":64,
-  "AP":65
-};
   
   

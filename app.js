@@ -1,11 +1,8 @@
 
-/**
- * Module dependencies
- */
-
 var express = require('express'),
     routes = require('./routes'),
-    theTeamScrapers = require('./routes/scrapeTeams'),
+    theTeamScraper = require('./routes/scrapeTeams'),
+    theTeamSaver = require('./routes/saveTeams'),
     theEventScrapers = require('./routes/scrapeEvents'),
     theLogoScrapers = require('./routes/scrapeLogos');
 
@@ -31,8 +28,8 @@ app.configure('production', function(){
 });
 
 // Routes
-app.get('/scrapeTeams/', theTeamScrapers.scrapeTeams);
-app.get('/saveTeams/', theTeamScrapers.saveTeams);
+app.get('/scrapeTeams/', theTeamScraper.scrapeTeams);
+app.get('/saveTeams/', theTeamSaver.saveTeams);
 app.get('/scrapeEvents/', theEventScrapers.scrapeEvents);
 app.get('/scrapeLogos/', theLogoScrapers.scrapeLogos);
 app.get('/', routes.index);
