@@ -7,6 +7,15 @@ exports.scrapeLogos = function(req, res)
 {
   var theDB = new pg.Client(theDBUrl);
   theDB.connect();
+  var theLeague = req.param("league", "NCAAF");
+
+  var LOAD_TEAMS_SQL = 
+  {
+    "NCAAF" : "select id, espn_team_id as espn_id, slug from teams where league_id=2",
+    "NFL" : "select id, espn_team_name_id as espn_id, slug from teams where league_id=1"
+  }
+
+  console.log("scraping data for:" + theLeague);
   
   var theSaveJob = new nodeio.Job({
     input: false,
@@ -15,8 +24,8 @@ exports.scrapeLogos = function(req, res)
         var theJob = this;
         theDB.query(
         {
-          name: 'get espn url and id for every team',
-          text: 'select id, espn_team_url from teams'
+          name: 'get espn data for every team',
+          text: LOAD_TEAMS_SQL[theLeague]
         },
         function(anError, aQueryResult)
         {
@@ -25,22 +34,18 @@ exports.scrapeLogos = function(req, res)
           {
             theTeam = new Object()
             theTeam.fanzoId = aQueryResult.rows[i].id
-
-            var theIdMatcher = /http:\/\/espn.go.com\/college-football\/team\/_\/id\/(\d+)\/(.*)$/;
-            var theMatches = theIdMatcher.exec(aQueryResult.rows[i].espn_team_url);
-            theTeam.espnId = theMatches[1];
-            theTeam.teamSlug = theMatches[2];
+            theTeam.espnId = aQueryResult.rows[i].espn_id;
+            theTeam.teamSlug = aQueryResult.rows[i].slug;
             theJob.emit(theTeam);
           };
-        
         });
     },
     reduce: function(aTeamList)
     {
       for (var i=0; i < aTeamList.length; i++) 
       {
-        theTeam = aTeamList[i]
-        var theLogoSaver = new LogoSaver(theTeam, this)
+        theTeam = aTeamList[i];
+        var theLogoSaver = new LogoSaver(theTeam, theLeague, this);
         theLogoSaver.saveLogos();
       };
     },
@@ -85,16 +90,18 @@ exports.scrapeLogos = function(req, res)
    
 }
 
-var LogoSaver = function(aTeam, aJob)
+var LogoSaver = function(aTeam, aLeague, aJob)
 {
   this.myTeam = aTeam;
   this.myJob = aJob;
+  this.myLeague = aLeague == "NCAAF" ? "ncaa" : "nfl";
   
-  this.mySmallLogoUrl = "http://a.espncdn.com/i/teamlogos/ncaa/sml/trans/" + aTeam.espnId + ".gif";
+  
+  this.mySmallLogoUrl = "http://a.espncdn.com/i/teamlogos/" + this.myLeague + "/sml/trans/" + aTeam.espnId + ".gif";
   this.mySmallLogoPath = "public/images/logos/" + aTeam.teamSlug + "_s.gif";
-  this.myMediumLogoUrl = "http://a.espncdn.com/i/teamlogos/ncaa/med/trans/" + aTeam.espnId + ".gif";
+  this.myMediumLogoUrl = "http://a.espncdn.com/i/teamlogos/" + this.myLeague + "/med/trans/" + aTeam.espnId + ".gif";
   this.myMediumLogoPath = "public/images/logos/" + aTeam.teamSlug + "_m.gif";
-  this.myLargeLogoUrl = "http://a.espncdn.com/i/teamlogos/ncaa/lrg/trans/" + aTeam.espnId + ".gif";
+  this.myLargeLogoUrl = "http://a.espncdn.com/i/teamlogos/" + this.myLeague + "/lrg/trans/" + aTeam.espnId + ".gif";
   this.myLargeLogoPath = "public/images/logos/" + aTeam.teamSlug + "_l.gif";
       
   this.saveLogos = function()
