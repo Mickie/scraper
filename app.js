@@ -4,9 +4,10 @@ var express = require('express'),
     theTeamScraper = require('./routes/scrapeTeams'),
     theTeamSaver = require('./routes/saveTeams'),
     theEventScrapers = require('./routes/scrapeEvents'),
-    theLogoScrapers = require('./routes/scrapeLogos');
+    theLogoScrapers = require('./routes/scrapeLogos'),
+    theNCAAMBBScheduleScraper = require('./routes/scrapeNCAAMBBEvents');
 
-var app = module.exports = express.createServer();
+var app = module.exports = express();
 
 // Configuration
 
@@ -32,8 +33,9 @@ app.get('/scrapeTeams/', theTeamScraper.scrapeTeams);
 app.get('/saveTeams/', theTeamSaver.saveTeams);
 app.get('/scrapeEvents/', theEventScrapers.scrapeEvents);
 app.get('/scrapeLogos/', theLogoScrapers.scrapeLogos);
+app.get('/scrapeNCAAMBBEvents/', theNCAAMBBScheduleScraper.scrapeEvents);
 app.get('/', routes.index);
 
-var port = process.env.PORT || 3001;
+var port = 3011;
 app.listen(port);
-console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
+console.log("Express server listening on port %d in %s mode", port, app.settings.env);

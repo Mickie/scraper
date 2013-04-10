@@ -8,7 +8,10 @@ function convertSlugToName(aSlug)
   var theResult = [];
   for(var i=0,j=thePieces.length; i<j; i++)
   {
-    theResult[i] = thePieces[i][0].toUpperCase() + thePieces[i].slice(1);
+    if(thePieces[i][0] != null)
+    {
+        theResult[i] = thePieces[i][0].toUpperCase() + thePieces[i].slice(1);
+    }
   };
   
   return theResult.join(" ");

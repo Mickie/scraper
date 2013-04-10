@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<p id="demo">Click the button to display the name of this month.</p>
+
+<button onclick="doit()">Try it</button>
+
+<script>
+
+    var formatDate= function(value){
+
+        if (value.getMonth()<=8 && value.getDate()<=9) {
+
+            return value.getFullYear()+"0"+(value.getMonth()+1)+"0"+value.getDate();
+        }
+
+        else if (value.getMonth()<=8){
+
+            return value.getFullYear()+"0"+(value.getMonth()+1)+value.getDate();
+        }
+
+        else if (value.getDate()<=9){
+
+            return value.getFullYear().toString()+(value.getMonth()+1)+"0"+value.getDate();
+        }
+
+        else{return value.getFullYear().toString()+(value.getMonth()+1)+value.getDate(); }
+    } ;
+    var doit = function() {
+        var start_date = new Date(2013, 1, 27);  //2012-11-09
+
+        var end_date = new Date(2013,2,10);  //2012-03-10
+        var totaldays=Math.floor((end_date.getTime() - start_date.getTime())/(1000*60*60*24))+1;
+        var aaa=new Array();
+        for(var i= 0;i<totaldays;i++)
+        {
+            var myDate=start_date;
+            alert(myDate);
+
+            aaa.push(formatDate(myDate));
+
+            alert(formatDate(myDate));
+
+            myDate.setDate(myDate.getDate()+1);
+
+
+        }
+
+
+    }
+</script>
+
+</body>
+</html>

@@ -5,6 +5,7 @@ var theDBUrl = process.env.DATABASE_URL || "tcp://fanzo_site:fanzo_site@localhos
 
 exports.saveTeams = function(req, res)
 {
+    console.log("Here we go, saving the team!");
   var theDB = new pg.Client(theDBUrl);
   theDB.connect();
   
